@@ -1,0 +1,5 @@
+---
+otelcol_version: "0.74.0"
+jaeger_endpoint: localhost
+loki_endpoint: localhost
+...

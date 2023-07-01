@@ -1,0 +1,64 @@
+---
+- name: Check installing OpenTelemetry Collector
+  command: "{{ _otel_binary_install_dir }}/otelcol-contrib --version"
+  register: otelcol_installed
+  changed_when: false
+  ignore_errors: true
+
+- name: Download and install OpenTelemetry Collector
+  when: otelcol_installed.rc != 0
+  block:
+    - name: Download archive OpenTelemetry Collector
+      ansible.builtin.get_url:
+        url: https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v{{ otelcol_version }}/otelcol-contrib_{{ otelcol_version }}_linux_amd64.tar.gz
+        dest: "/tmp/otelcol-contrib_{{ otelcol_version }}_linux_amd64.tar.gz"
+        mode: '0644'
+      when: otelcol_installed.rc != 0
+      register: _download_archive
+      until: _download_archive is succeeded
+      retries: 5
+      delay: 2
+      check_mode: false
+
+    - name: Unpack OpenTelemetry Collector
+      become: true
+      ansible.builtin.unarchive:
+        src: "/tmp/otelcol-contrib_{{ otelcol_version }}_linux_amd64.tar.gz"
+        dest: "{{ _otel_binary_install_dir }}"
+        creates: "{{ _otel_binary_install_dir }}/otelcol-contrib"
+        mode: "0755"
+        owner: root
+        group: root
+      check_mode: false
+
+    - name: Setting Execute Permissions
+      ansible.builtin.file:
+        path: /usr/local/bin/otelcol-contrib
+        mode: 'u+x'
+
+- name: Create or modify OpenTelemetry Collector config
+  become: true
+  ansible.builtin.template:
+    src: otel-collector-config.yaml.j2
+    dest: /etc/otel-collector-config.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart OpenTelemetry Collector
+
+- name: Create or modify OpenTelemetry Collector Unit
+  ansible.builtin.template:
+    src: otel-collector.service.j2
+    dest: /etc/systemd/system/otel-collector.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart OpenTelemetry Collector
+
+- name: Start and enable OpenTelemetry Collector
+  ansible.builtin.systemd:
+    name: otel-collector
+    state: started
+    enabled: yes
+  notify: Restart OpenTelemetry Collector
+...

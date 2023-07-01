@@ -1,0 +1,6 @@
+---
+- name: Restart OpenTelemetry Collector
+  systemd:
+    name: otel-collector
+    state: restarted
+...
